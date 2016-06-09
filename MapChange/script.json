@@ -17,6 +17,11 @@
 		"description": "Set to false to turn off notifing the GM when a player moves.",
 		"value": "true"
 	}, {
+		"name": "GM Only",
+		"type": "checkbox",
+		"description": "Set to true to only allow GMs to use the commands.",
+		"value": "false"
+	}, {
 		"name": "Marker",
 		"type": "text",
 		"default": "[GM]",

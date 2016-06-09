@@ -20,6 +20,8 @@ var MapChange = MapChange || (function() {
     // When true this places the pages with name containing the marker into the public list.
     // Use this if you want maps to be private by default instead of public by default.
     var invertedMarker = false;
+    // Set to true to allow the chat commands for the GMs only.
+    var isGmOnly = false;
     // These are maps that players are able to move to using the commands.
     var publicMaps = {};
     // These are maps that only the GM can move people to.
@@ -47,7 +49,9 @@ var MapChange = MapChange || (function() {
                     marker: marker,
                     // When true this places the pages with name containing the marker into the public list.
                     // Use this if you want maps to be private by default instead of public by default.
-                    invertedMarker: invertedMarker
+                    invertedMarker: invertedMarker,
+                    // When this is true it allows the chat commands for the GMs only.
+                    isGmOnly: isGmOnly
                 },
                 // These are maps that players are able to move to using the commands.
                 publicMaps: publicMaps,
@@ -73,6 +77,8 @@ var MapChange = MapChange || (function() {
             st.config.debug = JSON.parse(gc['Debug Mode']) === false;
             // Get the gmNotify setting from the global config.
             st.config.gmNotify = JSON.parse(gc['GM Notification']) === true;
+            // Get the isGmOnly setting from the global config.
+            st.config.isGmOnly = JSON.parse(gc['GM Only']) === true;
             // Get the invertedMarker setting from the global config.
             st.config.marker = gc['Marker'] === "[GM]";
             // Get the marker setting from the global config.
@@ -80,6 +86,7 @@ var MapChange = MapChange || (function() {
         }
         // Debug
         if (st.config.debug) {
+            log("MapChange state:");
             log(st.config);
         }
     };
@@ -121,7 +128,8 @@ var MapChange = MapChange || (function() {
     // Handle the input message call for the api from the chat event.
     var handleInput = function(msg) {
         // Check that the message sent is for the api, if not return as we don't need to do anything.
-        if (msg.type !== "api") {
+        // Otherwise block non-GMs if commands are for GMs only.
+        if (msg.type !== "api" || (state.MapChange.config.isGmOnly && !playerIsGM(msg.playerid))) {
             return;
         }
         // Grab the contents of the msg sent and split it into the individual arguments.
@@ -876,11 +884,14 @@ var MapChange = MapChange || (function() {
         RegisterEventHandlers: registerEventHandlers,
         CheckInstall: checkInstall,
         Debug: debug,
-        GMNotify: gmNotify
+        GMNotify: gmNotify,
+        IsGmOnly: isGmOnly
     };
 }());
 
 var globalconfig = globalconfig || undefined;
+
+state.MapChange.config['isGmOnly'] = true;
 
 on("ready", function() {
     'use strict';
