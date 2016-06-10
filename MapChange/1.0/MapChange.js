@@ -6,17 +6,21 @@ var MapChange = MapChange || (function() {
     'use strict';
     // Defaults.
     // Date last modified in unix timestamp format.
-    var lastModified = "1464699646";
+    var lastModified = "1465525017";
     // Name of the person who last modified the script.
-    var modifiedBy = "TheWhiteWolves";
+    var modifiedBy = "Torvawk Kasato";
     // Local version of the script.
-    var version = "1.00";
+    var version = "1.01";
     // Set to true to use built in debug statements
     var debug = true;
     // Set to false to turn off notifing the GM when a player moves.
     var gmNotify = true;
     // The marker used to decide what is placed in the private map.
     var marker = "[GM]";
+    // The hotspot prefix.
+    var portalPrefix = "hotspot_";
+    // The hotspot layer.
+    var portalLayer = "gmlayer";    //(all|walls|gmlayer|objects|map)
     // When true this places the pages with name containing the marker into the public list.
     // Use this if you want maps to be private by default instead of public by default.
     var invertedMarker = false;
@@ -26,6 +30,8 @@ var MapChange = MapChange || (function() {
     var publicMaps = {};
     // These are maps that only the GM can move people to.
     var privateMaps = {};
+    // These are the tokens to use for the portal hotspots.
+    var portalTokens = {};
     // Check the installation of the script and setup the default configs.
     var checkInstall = function() {
         if (!state.MapChange || state.MapChange.version !== version) {
@@ -51,12 +57,18 @@ var MapChange = MapChange || (function() {
                     // Use this if you want maps to be private by default instead of public by default.
                     invertedMarker: invertedMarker,
                     // When this is true it allows the chat commands for the GMs only.
-                    isGmOnly: isGmOnly
+                    isGmOnly: isGmOnly,
+                    // The prefix used to find portal hotspot tokens.
+                    portalPrefix: portalPrefix,
+                    // The layer where the portal hotspots will be found.
+                    portalLayer: portalLayer
                 },
                 // These are maps that players are able to move to using the commands.
                 publicMaps: publicMaps,
                 // These are maps that only the GM can move people to.
-                privateMaps: privateMaps
+                privateMaps: privateMaps,
+                // These are tokens expected to have portal information for map movement.
+                portalTokens: portalTokens
             };
         }
         // Load and changes to the defaults from the global config.
@@ -125,6 +137,23 @@ var MapChange = MapChange || (function() {
         }
     };
     
+    var constructPortals = function() {
+        var st = state.MapChange;
+        // Get all tokens on the portalLayer
+        var attributes = {_type: 'graphic', _subtype: 'token'};
+        if(st.config.portalLayer !== 'all'){
+            attributes.layer = st.config.portalLayer;
+        }
+        var initialList = findObjs(attributes);
+        // filter down to tokens with the portalPrefix. These are the portal tokens.
+        st.portalTokens = _.filter(initialList, function(token){return token.get("name").substr(0,st.config.portalPrefix.length) === st.config.portalPrefix;});
+
+        // Debug
+        if (state.MapChange.config.debug) {
+            log("Portals:");
+            log(state.MapChange.portalTokens);
+        }
+    }
     // Handle the input message call for the api from the chat event.
     var handleInput = function(msg) {
         // Check that the message sent is for the api, if not return as we don't need to do anything.
@@ -718,6 +747,7 @@ var MapChange = MapChange || (function() {
         state.MapChange.privateMaps = {};
         // Reassemble the maps.
         constructMaps();
+        constructPortals();
         log("Refresh Complete");
         // Check if the GM should be notified.
         if (state.MapChange.config.gmNotify) {
@@ -881,6 +911,7 @@ var MapChange = MapChange || (function() {
 
     return {
         ConstructMaps: constructMaps,
+        ConstructPortals: constructPortals,
         RegisterEventHandlers: registerEventHandlers,
         CheckInstall: checkInstall,
         Debug: debug,
@@ -902,6 +933,7 @@ on("ready", function() {
         // If it is then log out the map construction.
         log("Map Change Started");
         MapChange.ConstructMaps();
+        MapChange.ConstructPortals();
         log("Maps Constructed");
         MapChange.RegisterEventHandlers();
         log("Map Change Ready");

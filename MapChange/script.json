@@ -31,6 +31,16 @@
 		"type": "checkbox",
 		"description": "When true this places the pages with name containing the marker into the public list.\nUse this if you want maps to be private by default instead of public by default.",
 		"value": "false"
+	}, {
+		"name": "Hotspot Prefix",
+		"type": "text",
+		"default": "mapportal_",
+		"description": "The prefix used on token to use as map portal hotspot."
+	}, {
+		"name": "Hotspot Layer",
+		"type": "text",
+		"default": "gmlayer",
+		"description": "The layer that the token map portal hotspots can be found on. (all|walls|gmlayer|objects|map)"
 	}],
 	"dependencies": [],
 	"modifies": {
