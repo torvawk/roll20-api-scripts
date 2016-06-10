@@ -149,7 +149,7 @@ var MapChange = MapChange || (function() {
         st.portalTokens = _.filter(initialList, function(token){return token.get("name").substr(0,st.config.portalPrefix.length) === st.config.portalPrefix;});
 
         // Debug
-        if (state.MapChange.config.debug) {
+        if (st.config.debug) {
             log("Portals:");
             log(state.MapChange.portalTokens);
         }
@@ -310,7 +310,7 @@ var MapChange = MapChange || (function() {
         // If no match was found then return undefined.
         return undefined;
     };
-    
+
     // Convert the provided player id into the display name for that player.
     var getDisplayNameFromPlayerId = function(id) {
         // Find all the player objects in the campaign.
@@ -327,7 +327,44 @@ var MapChange = MapChange || (function() {
         return undefined;
     };
 
-    // TODO
+    function Point(x, y) { return { x: x, y: y}; };
+    function Box (topLeft, bottomRight) {return {topLeft: topLeft, bottomRight: bottomRight}; };
+    function getBox(center, height, width) {
+        var points = [];
+        points.push(Point(center.x - width/2, center.y - width/2));
+        points.push(Point(center.x + width/2, center.y + width/2));
+        return Box(points[0], points[1]);
+    };
+
+    function getCorners(box) {
+        var points = [];
+        points.push(box.topLeft);
+        points.push(Point(box.bottomRight.x, box.topLeft.y));
+        points.push(box.bottomRight);
+        points.push(Point(box.topLeft.x, box.bottomRight.y));
+        // incase you are curious about the order, it is clockwise from the topLeft
+        return points;
+    };
+
+    function isContained(box, point){
+        var withinX = (box.topLeft.x <= point.x && box.bottomRight.x >= point.x);
+        var withinY = (box.topLeft.y <= point.y && box.bottomRight.y >= point.y);
+        return withinX && withinY;
+    };
+
+    function isOverlap(box1, box2) {
+        // find out if at least on of the corners of box2 contained by box1.
+        var found = _.some(getCorners(box2), function(point){return isContained(box1, point);});
+        if ( !found ){
+            // find out if at least on of the corners of box1 contained by box2.
+            found = _.some(getCorners(box1), function(point){return isContained(box2, point);});
+        };
+        // TODO: this will need more work as they can over lap and not have a corner contained in the
+        // other box but for now this works 90% of the time and I will update this later for more
+        // overlap scenarios.
+        return found;
+    };
+
     var showHelp = function(msg, show) {
         // Create the variable to hold the assembled menu text.
         var text = "";
