@@ -74,7 +74,7 @@ var MapChange = MapChange || (function() {
         // Load and changes to the defaults from the global config.
         loadGlobalConfig();
     };
-    
+
     // Loads the config options from the global config.
     var loadGlobalConfig = function() {
         // Get a reference to the global config.
@@ -102,12 +102,12 @@ var MapChange = MapChange || (function() {
             log(st.config);
         }
     };
-    
+
     // Constructs the private and public maps for use in the api script.
     var constructMaps = function() {
         // Get an object containing all the pages in the campaign.
         var pages = findObjs({_type: 'page'});
-        
+
         // Loop through the pages adding them to their relevent maps.
         for (var key in pages) {
             // Get the name of the page that is current being processed.
@@ -136,7 +136,7 @@ var MapChange = MapChange || (function() {
             log(state.MapChange.privateMaps);
         }
     };
-    
+
     var constructPortals = function() {
         var st = state.MapChange;
         // Get all tokens on the portalLayer
@@ -188,13 +188,13 @@ var MapChange = MapChange || (function() {
                 return;
         }
     };
-    
+
     // Parses the commands of the call to the api script.
     var parseCommands = function(args) {
         // Split the arguments by spaces and return the array containing them all.
         return args.split(/\s+/);
     };
-    
+
     // Parses the parameters of the call to the api script.
     var parseParameters = function(args) {
         // Declare a new object to hold the parameters.
@@ -210,7 +210,7 @@ var MapChange = MapChange || (function() {
         // Return the constructed object of parameters.
         return params;
     };
-    
+
     // Processes the commands provided in the call to the api script.
     var processCommands = function(msg, commands, params) {
         // Take the command and decide what function to run.
@@ -288,6 +288,7 @@ var MapChange = MapChange || (function() {
                 // the provided name.
                 moveall(msg, params.target);
                 break;
+
             default:
                 // Show the scripts help text is no further command was provided.
                 showHelp(msg, "index");
@@ -329,10 +330,10 @@ var MapChange = MapChange || (function() {
 
     function Point(x, y) { return { x: x, y: y}; };
     function Box (topLeft, bottomRight) {return {topLeft: topLeft, bottomRight: bottomRight}; };
-    function getBox(center, height, width) {
+    function getBox(center, width, height) {
         var points = [];
-        points.push(Point(center.x - width/2, center.y - width/2));
-        points.push(Point(center.x + width/2, center.y + width/2));
+        points.push(Point(center.x - width/2, center.y - height/2));
+        points.push(Point(center.x + width/2, center.y + height/2));
         return Box(points[0], points[1]);
     };
 
@@ -353,10 +354,10 @@ var MapChange = MapChange || (function() {
     };
 
     function isOverlap(box1, box2) {
-        // find out if at least on of the corners of box2 contained by box1.
+        // find out if at least one of the corners of box2 is contained by box1.
         var found = _.some(getCorners(box2), function(point){return isContained(box1, point);});
         if ( !found ){
-            // find out if at least on of the corners of box1 contained by box2.
+            // find out if at least one of the corners of box1 is contained by box2.
             found = _.some(getCorners(box1), function(point){return isContained(box2, point);});
         };
         // TODO: this will need more work as they can over lap and not have a corner contained in the
@@ -364,6 +365,32 @@ var MapChange = MapChange || (function() {
         // overlap scenarios.
         return found;
     };
+
+    function changeGraphic(obj, prev) {
+        var character;
+
+        // do nothing if it is not a token or has not moved
+        if (obj.get('subtype') !== 'token' ||
+            (obj.get('top') === prev.top && obj.get('left') === prev.left)) { return; }
+
+        // do nothing for GM tokens
+        if (obj.get('represents') !== '') {
+            character = getObj('character', obj.get('represents'));
+            if (character.get('controlledby') === '') { return; } // GM-only character
+        } else if (obj.get('controlledby') === '') { return; } // GM-only token
+
+        var tokenBox = getBox(Point(obj.get('left'), obj.get('top')), obj.get("width"), obj.get("height"));
+        // find portals overlapped by the token
+        var activatedPortals = _.filter(state.MapChange.portalTokens, function(portal){
+            return isOverlap(getBox(Point(portal.get("left"), portal.get("top")), portal.get("width"), portal.get("height")), tokenBox);
+        });
+
+        if (activatedPortals.length > 0){
+            log("MapChange: portals activated");
+            _.each(activatedPortals, log(portal));
+        };
+    };
+
 
     var showHelp = function(msg, show) {
         // Create the variable to hold the assembled menu text.
@@ -649,7 +676,7 @@ var MapChange = MapChange || (function() {
             log(show);
         }
     };
-    
+
     // Displays a chat based menu for the teleportation, this provides users with  a set of
     // easy to use api buttons in the chat that will launch the commands for them.
     var showMenu = function(msg, show) {
@@ -721,7 +748,7 @@ var MapChange = MapChange || (function() {
                     }
                     // Complete the Other api button.
                     text += "}'>Other</a></td>";
-                    
+
                     // Add a closing tag to finish the row in the table.
                     text += "</tr>";
                 }
@@ -792,28 +819,28 @@ var MapChange = MapChange || (function() {
             chat("/w", msg.who, "Map Refresh Complete");
         }
     };
-    
+
     // Moves a player to the specified map.
     var move = function(msg, sender, target) {
         var pages = findObjs({_type: 'page'});
         var playerPages = Campaign().get("playerspecificpages");
         var differentSender = false;
-        
+
         if (msg.playerid != sender) {
             differentSender = true;
         }
-        
+
         if (playerPages === false) {
             playerPages = {};
         }
-        
+
         if (target in state.MapChange.publicMaps) {
             // Move player.
             if (sender in playerPages) {
                 delete playerPages[sender];
             }
             playerPages[sender] = state.MapChange.publicMaps[target];
-            
+
             if (state.MapChange.config.gmNotify) {
                 var playerAddition = ((differentSender) ? getDisplayNameFromPlayerId(sender) + " " : "");
                 chat("/w", "gm", msg.who.replace("(GM)", "") + " has moved " + playerAddition + "to " + target);
@@ -826,7 +853,7 @@ var MapChange = MapChange || (function() {
                     delete playerPages[sender];
                 }
                 playerPages[sender] = state.MapChange.privateMaps[target];
-                
+
                 if (state.MapChange.config.gmNotify) {
                     var playerAddition = ((differentSender) ? getDisplayNameFromPlayerId(sender) + " " : "");
                     chat("/w", "gm", msg.who.replace("(GM)", "") + " has moved " + playerAddition + "to " + target);
@@ -837,7 +864,7 @@ var MapChange = MapChange || (function() {
             // Report Map not found.
             chat("/w", msg.who, "Map " + target + "not found");
         }
-        
+
         Campaign().set("playerspecificpages", false);
         Campaign().set("playerspecificpages", playerPages);
     };
@@ -845,11 +872,11 @@ var MapChange = MapChange || (function() {
     var rejoin = function(msg, sender) {
         var playerPages = Campaign().get("playerspecificpages");
         var differentSender = false;
-        
+
         if (msg.playerid != sender) {
             differentSender = true;
         }
-        
+
         if (playerPages !== false) {
             if (sender in playerPages) {
                 delete playerPages[sender];
@@ -860,7 +887,7 @@ var MapChange = MapChange || (function() {
             playerPages = false;
         }
         Campaign().set("playerspecificpages", playerPages);
-        
+
         if (state.MapChange.config.gmNotify) {
             if (differentSender) {
                 chat("/w", "gm", msg.who.replace("(GM)", "") + " has rejoined " + getDisplayNameFromPlayerId(sender) + " with the bookmark")
@@ -877,7 +904,7 @@ var MapChange = MapChange || (function() {
             if (target in state.MapChange.publicMaps) {
                 Campaign().set("playerspecificpages", false);
                 bookmarkPage = state.MapChange.publicMaps[target];
-                
+
                 if (state.MapChange.config.gmNotify) {
                     chat("/w", "gm", "All players have moved to " + target);
                 }
@@ -885,7 +912,7 @@ var MapChange = MapChange || (function() {
             else if (target in state.MapChange.privateMaps) {
                 Campaign().set("playerspecificpages", false);
                 bookmarkPage = state.MapChange.privateMaps[target];
-                
+
                 if (state.MapChange.config.gmNotify) {
                     chat("/w", "gm", "All players have moved to " + target);
                 }
@@ -893,16 +920,16 @@ var MapChange = MapChange || (function() {
             else {
                 chat("/w", msg.who, "Map " + target + " not found");
             }
-            
+
             Campaign().set("playerpageid", bookmarkPage);
         }
     };
-    
+
     var chat = function(type, who, message) {
         who = who.split(" ")[0].replace(" (GM)", "");
         sendChat("MapChange", type + " " + who + " " + message, {noarchive:true});
     };
-    
+
     var navigation = function(prev, next) {
         // Create a varaible to hold the total colspan for the title bar.
         var colspan = 1;
@@ -944,6 +971,7 @@ var MapChange = MapChange || (function() {
 
     var registerEventHandlers = function() {
         on('chat:message', handleInput);
+        on('change:graphic', changeGraphic);
     };
 
     return {
