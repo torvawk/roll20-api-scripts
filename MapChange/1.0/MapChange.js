@@ -798,7 +798,7 @@ var MapChange = MapChange || (function() {
 
         var text = "Please selecte a destination:<br><table>";
         _.each(remainingPortalTokens, function(portal){
-            var page = findObjs({_type: 'page', _id: portal.get("_pageid")});
+            var page = getObj("page",  portal.get("_pageid"));
             text += "<tr><td><a href='!mc makeportal --destination " + portal.get("_id");
             if (params.hasOwnProperty("offsetdir")) {
                 text += " --offsetdir " + params.offsetdir;
