@@ -32,6 +32,8 @@ var MapChange = MapChange || (function() {
     var privateMaps = {};
     // These are the tokens to use for the portal hotspots.
     var portalTokens = {};
+    // This is the number of extra pixels to use with the offset direction.
+    var portalOffsetBuffer = 5;
     // Check the installation of the script and setup the default configs.
     var checkInstall = function() {
         if (!state.MapChange || state.MapChange.version !== version) {
@@ -118,7 +120,7 @@ var MapChange = MapChange || (function() {
             if (name.indexOf(state.MapChange.config.marker) > -1) {
                 // If the name does then remove the marker from the name and trim off any whitespace.
                 name = name.replace(state.MapChange.config.marker, "").trim();
-                // If invertedMarker is being used then place the name and id of the page in the 
+                // If invertedMarker is being used then place the name and id of the page in the
                 // public map else place it in the private map.
                 state.MapChange.config.invertedMarker ? state.MapChange.publicMaps[name] = id : state.MapChange.privateMaps[name] = id;
             }
@@ -220,7 +222,7 @@ var MapChange = MapChange || (function() {
                 var show = "index";
                 // Check to see if the show parameter was provided in the api call.
                 if (params.hasOwnProperty("show")) {
-                    // If it was then check that it is not empty and if it isn't then change show to 
+                    // If it was then check that it is not empty and if it isn't then change show to
                     // the value of the parameter.
                     show = (params.show !== "") ? params.show.toLowerCase() : "index";
                 }
@@ -232,7 +234,7 @@ var MapChange = MapChange || (function() {
                 var show = "all";
                 // Check to see if the show parameter was provided in the api call.
                 if (params.hasOwnProperty("show")) {
-                    // If it was then check that it is not empty and if it isn't then change show to 
+                    // If it was then check that it is not empty and if it isn't then change show to
                     // the value of the parameter.
                     show = (params.show !== "") ? params.show.toLowerCase() : "all";
                 }
@@ -248,7 +250,7 @@ var MapChange = MapChange || (function() {
                 // Check to see if the sender has provided and target map for the move, if they
                 // haven't then send them a chat message to tell them it is missing.
                 if (params.hasOwnProperty("target")) {
-                    // Check to see if the sender has provided a player to be moved, if they 
+                    // Check to see if the sender has provided a player to be moved, if they
                     // haven't then user the id of the sender.
                     if (params.hasOwnProperty("player")) {
                         // Move the provided player to the map with the provided name.
@@ -288,7 +290,74 @@ var MapChange = MapChange || (function() {
                 // the provided name.
                 moveall(msg, params.target);
                 break;
+            case "makeportal":
+                var isGood = true;
+                // check if a single token is selected
+                if(msg.selected.length != 1){
+                    chat("/w", msg.who, "To use this command you need to have only one token selected.");
+                    isGood = false;
+                }
 
+                // check if selected token is a portal token
+                if(isGood) {
+                    var selectedToken = msg.selected[0];
+                    var matchingPortals = _.where(state.MapChange.portalTokens, {_id: selectedToken.get("_id")});
+                    if(!matchingPortals || matchingPortals.length != 1) {
+                        chat("/w", msg.who, "The selected token is not a portal hotspot token. It should be on the " + state.MapChange.config.portalLayer + " with a name that starts with '" + state.MapChange.config.portalPrefix + "' Also did you remember to <a href='!mc refresh'>Refresh</a>?");
+                        isGood = false;
+                    }
+                }
+                // check if the required parameters are present
+                if(isGood) {
+                    isGood =           params.hasOwnProperty("destination");
+                    isGood = isGood && params.hasOwnProperty("offsetdir");
+                }
+
+                // check if the destination exists
+                if(isGood) {
+                    var matchingPortals = _.where(state.MapChange.portalTokens, {_id: params.destination});
+                    if(!matchingPortals || matchingPortals.length != 1) {
+                        matchingPortals = _.where(state.MapChange.portalTokens, {name: params.destination});
+                    }
+
+                    if(!matchingPortals || matchingPortals.length != 1) {
+                        chat("/w", msg.who, "The target token is not a portal hotspot token. It should be on the " + state.MapChange.config.portalLayer + " with a name that starts with '" + state.MapChange.config.portalPrefix + "' Also did you remember to <a href='!mc refresh'>Refresh</a>?");
+                        isGood = false;
+                    }
+                    else {
+                        //normalize destination
+                        params.destination = matchingPortals[0].get("_id");
+                    }
+                }
+
+                // do the configuration
+                if(isGood) {
+                    var mapToken = msg.select[0];
+                    var gmtext = mapToken.get("gmnotes");
+                    var configs;
+                    try {
+                        // either there is JSON that can be parsed
+                        configs = JSON.parse(gmtext);
+                    }
+                    catch (SyntaxError) {
+                        // or not and we start with an empty array
+                        configs = [];
+                    }
+                    configs.push ( {destination: params.destination, offsetdir: params.offsetdir} );
+                    // write the configs back out as a JSON string.
+                    mapToken.set({gmnotes: JSON.stringify(configs)});
+                }
+
+                // should we show the api wizard?
+                if (!isGood){
+                    if(state.MapChange.portalTokens.length < 2) {
+                        showHelp(msg, "makeportal");
+                    }
+                    else {
+                        showMakeportalWizard(params);
+                    }
+                }
+                break;
             default:
                 // Show the scripts help text is no further command was provided.
                 showHelp(msg, "index");
@@ -296,6 +365,15 @@ var MapChange = MapChange || (function() {
         }
     };
 
+    var getPrameter (params, name, defaultValue) {
+        var returnValue = defaultValue;
+        // Check to see if the show parameter was provided in the api call.
+        if (params.hasOwnProperty(name)) {
+            // If it was then check that it is not empty and if it isn't then change show to
+            // the value of the parameter.
+            show = (params[name] !== "") ? params[name].toLowerCase() : defaultValue;
+        }
+    }
     // Convert the provided display name into the player id for that player.
     var getPlayerIdFromDisplayName = function(name) {
         // Find all the player objects in the campaign.
@@ -418,6 +496,10 @@ var MapChange = MapChange || (function() {
             if (playerIsGM(msg.playerid)) {
                 // If they are then add a row for the refresh command.
                 text += "<tr><td>refresh</td><td>Refreshes the map lists.</td><td><a href='!mc help --show refresh'>Info</a></td></tr>";
+            }            // Check if the calling player is a GM or not.
+            if (playerIsGM(msg.playerid)) {
+                // If they are then add a row for the makeportal command.
+                text += "<tr><td>refresh</td><td>Configures a token for use as a map portal hotspot.</td><td><a href='!mc help --show makeportal'>Info</a></td></tr>";
             }
             // Add a row for the help command.
             text += "<tr><td>help</td><td>Shows the help for the script</td><td><a href='!mc help --show help'>Info</a></td></tr>";
@@ -559,7 +641,28 @@ var MapChange = MapChange || (function() {
             // Add the closing tag for the table.
             text += "</table>";
             // Add in a back button for going back to the menu.
-            text += navigation("rejoin", "help");
+            text += navigation("rejoin", "makeportal");
+        }
+        // Assemble the text for the refresh documentation.
+        if (show === "makeportal") {
+            // Add the opening tag for the table.
+            text += "<table border='1' cellspacing='2' cellpadding='4'>";
+            // Add in the header row for the move help.
+            text += "<tr><td colspan='3'><strong><em>MakePortal</em></strong></td></tr>";
+            // Add a row for the description header.
+            text += "<tr><td colspan='3'><strong>Description</strong></td></tr>";
+            // Add a row for the description of the command.
+            text += "<tr><td colspan='3'>The makeportal command configures the selected token for use as a map portal hotspot. Please note, you will need to have at least two tokens on the " + state.MapChange.config.portalLayer + " who's name starts with " + state.MapChange.config.portalPrefix + ".</td></tr>";
+            // Add a row for the parameters section headers.
+            text += "<tr><td><strong>Parameter</strong></td><td><strong>Description</strong></td><td><strong>Options</strong></td></tr>";
+            // Add a row for the example header.
+            text += "<tr><td colspan='3'><strong>Example</strong></td></tr>";
+            // Add a row with an example and an api button to launch that example.
+            text += "<tr><td colspan='2'>!mc makeportal</td><td><a href='!mc makeportal'>Show Me!</a></td></tr>";
+            // Add the closing tag for the table.
+            text += "</table>";
+            // Add in a back button for going back to the menu.
+            text += navigation("refresh", "help");
         }
         // Assemble the text for the help documentation.
         if (show === "help") {
@@ -675,6 +778,68 @@ var MapChange = MapChange || (function() {
             log(text);
             log(show);
         }
+    };
+
+    var showMakeportalWizard(msg, params) {
+        var hasDestination = params.hasOwnProperty("destination");
+        var hasDir = params.hasOwnProperty("offsetdir");
+        if (! hasDestination) {
+            showMakeportalDestWizard(msg, params);
+        }
+        else if (! hasDir) {
+            showMakeportalDirWizard(msg, params);
+        }
+    };
+
+    var showMakeportalDestWizard(msg, params) {
+        var remainingPortalTokens = _.reject(state.MapChange.portalTokens, function (portal) {
+            return portal.get("_id") === msg.selected[0].get("_id");
+        });
+
+        var text = "Please selecte a destination:<br><table>";
+        _.each(remainingPortalTokens, function(portal){
+            var page = findObjs({_type: 'page', _id: portal.get("_pageid")});
+            text += "<tr><td><a href='!mc makeportal --destination " + portal.get("_id");
+            if (params.hasOwnProperty("offsetdir")) {
+                text += " --offsetdir " + params.offsetdir;
+            }
+            text += "'>" + portal.get("name") + " on page " + page.get("name") + "</a></td></tr>";
+        });
+        text += "</table>";
+        chat("/w", msg.who, text);
+    };
+
+    var showMakeportalDirWizard(msg, params) {
+        var text = "Please selecte an offset direction:<br><table>";
+        var basehref = "!mc makeportal --destination " + params.destination + " --offsetdir ";
+        // number order is north = 1 going clockwise so NE = 2 and NW = 8
+        // north row
+        text += "<tr>";
+        //north west 8
+        text += "<td><a href='" + basehref + "8'>NW</a></td>";
+        //north 1
+        text += "<td><a href='" + basehref + "1'>N</a></td>";
+        //north east 2
+        text += "<td><a href='" + basehref + "2'>NE</a></td>";
+        // west east row
+        text += "</tr><tr>";
+        //west 7
+        text += "<td><a href='" + basehref + "7'>W</a></td>";
+        //black out center
+        text += "<td background='black'></td>";
+        //east 3
+        text += "<td><a href='" + basehref + "3'>E</a></td>";
+        // south row
+        text += "</tr><tr>";
+        //south west 7
+        text += "<td><a href='" + basehref + "6'>SW</a></td>";
+        //south 4
+        text += "<td><a href='" + basehref + "4'>S</a></td>";
+        //south east 5
+        text += "<td><a href='" + basehref + "5'>SE</a></td>";
+        // closing out
+        text += "</tr></table>";
+        chat("/w", msg.who, text);
     };
 
     // Displays a chat based menu for the teleportation, this provides users with  a set of
