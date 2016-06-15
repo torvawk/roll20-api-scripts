@@ -365,7 +365,7 @@ var MapChange = MapChange || (function() {
         }
     };
 
-    var getPrameter (params, name, defaultValue) {
+    var getPrameter = function(params, name, defaultValue) {
         var returnValue = defaultValue;
         // Check to see if the show parameter was provided in the api call.
         if (params.hasOwnProperty(name)) {
@@ -780,7 +780,7 @@ var MapChange = MapChange || (function() {
         }
     };
 
-    var showMakeportalWizard(msg, params) {
+    var showMakeportalWizard = function(msg, params) {
         var hasDestination = params.hasOwnProperty("destination");
         var hasDir = params.hasOwnProperty("offsetdir");
         if (! hasDestination) {
@@ -791,7 +791,7 @@ var MapChange = MapChange || (function() {
         }
     };
 
-    var showMakeportalDestWizard(msg, params) {
+    var showMakeportalDestWizard = function(msg, params) {
         var remainingPortalTokens = _.reject(state.MapChange.portalTokens, function (portal) {
             return portal.get("_id") === msg.selected[0].get("_id");
         });
@@ -809,7 +809,7 @@ var MapChange = MapChange || (function() {
         chat("/w", msg.who, text);
     };
 
-    var showMakeportalDirWizard(msg, params) {
+    var showMakeportalDirWizard = function(msg, params) {
         var text = "Please selecte an offset direction:<br><table>";
         var basehref = "!mc makeportal --destination " + params.destination + " --offsetdir ";
         // number order is north = 1 going clockwise so NE = 2 and NW = 8
